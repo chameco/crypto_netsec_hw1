@@ -9,14 +9,12 @@ import binascii # library to convert strings to binary
 import socket
 
 # converting from input to binary 
-# credits to https://stackoverflow.com/questions/7396849/convert-binary-to-ascii-and-vice-versa
-def text_to_bits(text, encoding='utf-8', errors='surrogatepass'):
-    bits = bin(int(binascii.hexlify(text.encode(encoding, errors)), 16))[2:]
-    return bits.zfill(8 * ((len(bits) + 7) // 8))
+# credits to stack overflow
+def text_to_bits(cti):
+    return ''.join('{:08b}'.format(ord(c)) for c in cti)
 
-def text_from_bits(bits, encoding='utf-8', errors='surrogatepass'):
-    n = int(bits, 2)
-    return int2bytes(n).decode(encoding, errors)
+def text_from_bits(s):
+    return ''.join(chr(int(s[i*8:i*8+8],2)) for i in range(len(s)//8))
 
 def int2bytes(i):
     hex_string = '%x' % i
@@ -49,7 +47,7 @@ def key_IP(key):
 	real_p_key = ""
 	for i in range(len(permuted_key)):
 		real_p_key += permuted_key[i]
-	return real_p_key
+	return "{:010b}".format(int(real_p_key, 2))
 
 def key_splitter(P10_key):
 	# this function takes the P10_key from key_IP and splits 
@@ -61,7 +59,7 @@ def key_splitter(P10_key):
 	for i in range(5,10):
 		second_5bit += P10_key[i]
 
-	return first_5bit, second_5bit
+	return "{:05b}".format(int(first_5bit,2)), "{:05b}".format(int(second_5bit,2))
 
 def left_shifter(key_5bit):
 	# this takes a 5bit key half 
@@ -89,7 +87,7 @@ def P8_Permuter(half1, half2):
 	for i in range(len(permuted)):
 		final_key += permuted[i]
 
-	return final_key # remember, this is 8 bits
+	return "{:08b}".format(int(final_key, 2)) # remember, this is 8 bits
 
 def key_getter(initial_key):
 	# this is the overall function for getting the keys
@@ -101,7 +99,7 @@ def key_getter(initial_key):
 	ls_ls_half1 = left_shifter(ls_half1)
 	ls_ls_half2 = left_shifter(ls_half2)
 	K2 = P8_Permuter(ls_ls_half1, ls_ls_half2)
-	return K1, K2
+	return "{:08b}".format(int(K1, 2)), "{:08b}".format(int(K2, 2))
 
 # functions for generating the cipher 
 
@@ -122,10 +120,11 @@ def plain_text_IP(pt):
 	for i in range(len(permuted)):
 		permuted_final += permuted[i]
 
-	return permuted_final
+	return "{:08b}".format(int(permuted_final, 2))
 
 def split_pt(pt):
-	# this function takes the pt and splits it up into two 4-bit parts 
+	# this function takes the pt and splits it up into two 4-bit parts. 
+	# this is definetly working.
 	first_4bit = ""
 	second_4bit = ""
 	for i in range(0,4):
@@ -133,12 +132,16 @@ def split_pt(pt):
 
 	for i in range(4, 8):
 		second_4bit += pt[i]
-	return first_4bit, second_4bit
+
+	# print("The results are", first_4bit, "and", second_4bit, "from", pt)
+	return "{:04b}".format(int(first_4bit, 2)), "{:04b}".format(int(second_4bit, 2))
 
 def xor_4_bit_strings(pt1, pt2):
 	# this function takes the 4-bit strings and xor's them? Recombines them? Think it's xor.
 	# it is xor. I can do this by using the carrot ^, int('<insert bit string here', 2)
 	# and then getting it in 4bit format is "{:04b}"
+
+	# this definetly works
 	int_result = int(pt1, 2) ^ int(pt2, 2)
 	result_str = "{:04b}".format(int_result)
 
@@ -242,7 +245,7 @@ def F_function(half_pt, key):
 	for i in range(len(last_permute)):
 		result += last_permute[i]
 
-	return result
+	return "{:04b}".format(int(result,2))
 
 def inverse_initial_perm(almost_cp1, almost_cp2):
 	# this takes two 4 bit strings, combines into an 8-bit string that's been DES'd twice and
@@ -261,7 +264,7 @@ def inverse_initial_perm(almost_cp1, almost_cp2):
 	result = ""
 	for i in range(len(permute_list)):
 		result += permute_list[i]
-	return result
+	return "{:08b}".format(int(result,2))
 
 def encryptor(first_pt, K1, K2):
 	# this is the overall function that generates the ciphertext
@@ -275,12 +278,12 @@ def encryptor(first_pt, K1, K2):
 	# what is it XOR'd with? Itself? the other thing? 
 	xor_L1 = xor_4_bit_strings(L1, changed_R1)
 	# for simplicity's sake 
-	L2 = xor_L1
-	R2 = R1
-	changed_L2 = F_function(L2, K2)
-	xor_R2 = xor_4_bit_strings(changed_L2, R2)
-	cipher = inverse_initial_perm(L2, xor_R2)
-	return cipher
+	R2 = xor_L1 # WAS JUST XOR'D
+	L2 = R1
+	changed_R2 = F_function(R2, K2)
+	xor_R2 = xor_4_bit_strings(L2, changed_R2)
+	cipher = inverse_initial_perm(xor_R2, R2)
+	return "{:08b}".format(int(cipher, 2))
 
 # the decryption piece, should mirror encryptor 
 def decryptor(first_ct, K1, K2):
@@ -295,12 +298,12 @@ def decryptor(first_ct, K1, K2):
 	# what is it XOR'd with? Itself? the other thing? 
 	xor_L1 = xor_4_bit_strings(L1, changed_R1)
 	# for simplicity's sake 
-	L2 = xor_L1
-	R2 = R1
-	changed_L2 = F_function(L2, K1)
-	xor_R2 = xor_4_bit_strings(changed_L2, R2)
-	plaintext_bin = inverse_initial_perm(L2, xor_R2)
-	return plaintext_bin
+	R2 = xor_L1 # WAS JUST XOR'D
+	L2 = R1
+	changed_R2 = F_function(R2, K1)
+	xor_R2 = xor_4_bit_strings(L2, changed_R2)
+	plaintext = inverse_initial_perm(xor_R2, R2)
+	return "{:08b}".format(int(plaintext, 2))
 
 if __name__ == "__main__":
 	# TCP or UDP, your choice 
@@ -358,20 +361,62 @@ if __name__ == "__main__":
 	print("K2: ", realK2)
 	# can use int() 
 
-	# trying on one block for now 
-	test_block = block_list[0]
-	print("test block is: ", test_block)
-	first_cp = plain_text_IP(test_block)
-	print("first IP: ", first_cp)
-	cp_4bit1, cp_4bit2 = split_pt(first_cp)
-	print("the first split is: ", cp_4bit1)
-	print("the second half is: ", cp_4bit2)
-	print("XOR'ing the two results in: ", xor_4_bit_strings(cp_4bit1, cp_4bit2))
-	print("sbox0 of 0111 is:", sbox0('1100'))
+	''' 
+	This was me just trying to made sure the program worked. 
+	'''
+	# # trying on one block for now 
+	# test_block = block_list[0]
+	# print("test block is: ", test_block)
+	# first_cp = plain_text_IP(test_block)
+	# print("first IP: ", first_cp)
+	# cp_4bit1, cp_4bit2 = split_pt(first_cp)
+	# print("the first split is: ", cp_4bit1)
+	# print("the second half is: ", cp_4bit2)
+	# print("XOR'ing the two results in: ", xor_4_bit_strings(cp_4bit1, cp_4bit2))
+	# print("sbox0 of 0111 is:", sbox0('1100'))
 
-	first_cipher = encryptor(test_block, realK1, realK2)
-	print("the direct result of first_cipher: ", first_cipher)
+	# testing out the first cipher and making sure it works.
+	# first_cipher = encryptor(test_block, realK1, realK2)
+	# print("the direct result of first_cipher: ", first_cipher)
+	# print(list(first_cipher))
+	# print("the encoded string: ", text_from_bits(first_cipher))
 
-	first_decrypt = decryptor(first_cipher, realK1, realK2)
+	# first_decrypt = decryptor(first_cipher, realK1, realK2)
 
-	print("the direct result of first_decrypt: ", first_decrypt)
+	# print("the direct result of first_decrypt: ", first_decrypt)
+
+	# print("the direct result of turning the decrypt to text: ", text_from_bits(first_decrypt))
+
+	# encrypting and decrypting everything!!! 
+	encrypt_list = [] 
+	encrypt_string = ""
+	for i in range(len(block_list)):
+		encrypt_list.append(encryptor(block_list[i], realK1, realK2))
+
+	for i in range(len(encrypt_list)):
+		encrypt_string += text_from_bits(encrypt_list[i])
+
+	print("The encrypt_string is:", encrypt_string)
+
+	decrypt_list = [] 
+	encrypt_bits = text_to_bits(encrypt_string)
+
+	block = "" # this part breaks the encrypted message into 8 bit chunks 
+	for i in range(0, len(encrypt_bits), 8):
+		for j in range(i, i+8):
+			# print(j)
+			block += encrypt_bits[j]
+		decrypt_list.append(block)
+		block = ""
+
+	# this block will decrypt the blocks and turn them into binary 
+	decrypt_bits = [] 
+	for i in range(len(decrypt_list)):
+		decrypt_bits.append(decryptor(decrypt_list[i], realK1, realK2))
+
+	# finally, we convert the bits to something readable. 
+	block = ""
+	for i in range(len(decrypt_bits)):
+		block += text_from_bits(decrypt_bits[i])
+
+	print("The decrpyted string is:",block)
